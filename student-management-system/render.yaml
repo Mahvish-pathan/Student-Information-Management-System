@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: student-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    plan: free
+    envVars:
+      - key: MONGODB_URI
+        sync: false   # paste your Atlas connection string in the Render dashboard
+      - key: FRONTEND_URL
+        sync: false   # paste your Netlify URL in the Render dashboard
+      - key: NODE_VERSION
+        value: 20

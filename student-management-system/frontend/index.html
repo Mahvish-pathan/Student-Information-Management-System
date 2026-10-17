@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student Information Management System</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap">
+      <h1>Student Information Management System</h1>
+      <p>Netlify frontend &rarr; Render API &rarr; MongoDB Atlas</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <section class="card">
+      <h2 id="formTitle">Add Student</h2>
+      <form id="studentForm" novalidate>
+        <input type="hidden" id="recordId" />
+        <div class="grid">
+          <label>Student ID
+            <input id="studentId" type="text" placeholder="ST101" required />
+          </label>
+          <label>Name
+            <input id="name" type="text" placeholder="Rahul Sharma" required />
+          </label>
+          <label>Email
+            <input id="email" type="email" placeholder="rahul@example.com" required />
+          </label>
+          <label>Department
+            <input id="department" type="text" placeholder="Computer Engineering" required />
+          </label>
+          <label>Year
+            <select id="year" required>
+              <option value="">Select</option>
+              <option>1</option><option>2</option><option>3</option>
+              <option>4</option><option>5</option><option>6</option>
+            </select>
+          </label>
+          <label>Phone
+            <input id="phone" type="tel" placeholder="9876543210" />
+          </label>
+        </div>
+        <div class="actions">
+          <button type="submit" id="submitBtn" class="btn primary">Add Student</button>
+          <button type="button" id="cancelBtn" class="btn" hidden>Cancel edit</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="list-head">
+        <h2>Student Records <span id="count" class="badge">0</span></h2>
+        <input id="search" type="search" placeholder="Search by name, ID, email, department..." />
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>Name</th><th>Email</th><th>Department</th>
+              <th>Year</th><th>Phone</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <p id="status" class="status"></p>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
