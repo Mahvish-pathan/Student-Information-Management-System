@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "check-db": "node scripts/check-db.js",
     "dev": "node --watch server.js"
   },
   "engines": {

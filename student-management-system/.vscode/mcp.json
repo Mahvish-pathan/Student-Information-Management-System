@@ -1,0 +1,43 @@
+{
+  // One workspace, many MCP servers. Copilot Chat (Agent mode) can call tools from ALL of them in a single prompt.
+  // Open the folder "student-management-system" in VS Code. Secrets are asked at start-up (never stored in this file).
+  "inputs": [
+    { "id": "render_key",   "type": "promptString", "description": "Render API key (Account Settings > API Keys)", "password": true },
+    { "id": "vercel_token", "type": "promptString", "description": "Vercel token (Account Settings > Tokens)",     "password": true },
+    { "id": "github_token", "type": "promptString", "description": "GitHub fine-grained token (leave a space to skip)", "password": true }
+  ],
+  "servers": {
+    // 1) OUR unified agent: Student API + Render + Vercel + GitHub + MongoDB-URI doctor + sync_all
+    "student-ops": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["${workspaceFolder}/ops-mcp/server.py"],
+      "env": {
+        "STUDENT_API_URL":   "https://REPLACE-WITH-YOUR-RENDER-URL.onrender.com",
+        "FRONTEND_URL":      "https://REPLACE-WITH-YOUR-APP.vercel.app",
+        "RENDER_SERVICE_ID": "srv-REPLACE",
+        "VERCEL_PROJECT":    "REPLACE-WITH-VERCEL-PROJECT-NAME",
+        "GITHUB_REPO":       "Mahvish-pathan/Student-Information-Management-System",
+        "RENDER_API_KEY":    "${input:render_key}",
+        "VERCEL_TOKEN":      "${input:vercel_token}",
+        "GITHUB_TOKEN":      "${input:github_token}"
+      }
+    },
+
+    // 2) Official servers (optional extras: logs, analytics, repo/PR work)
+    "render": {
+      "type": "http",
+      "url": "https://mcp.render.com/mcp",
+      "headers": { "Authorization": "Bearer ${input:render_key}" }
+    },
+    "vercel": {
+      "type": "http",
+      "url": "https://mcp.vercel.com"
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": { "Authorization": "Bearer ${input:github_token}" }
+    }
+  }
+}

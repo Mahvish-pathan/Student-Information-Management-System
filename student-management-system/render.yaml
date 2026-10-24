@@ -9,8 +9,8 @@ services:
     plan: free
     envVars:
       - key: MONGODB_URI
-        sync: false   # paste your Atlas connection string in the Render dashboard
+        sync: false   # paste ONLY the Atlas connection string in the Render dashboard
       - key: FRONTEND_URL
-        sync: false   # paste your Netlify URL in the Render dashboard
+        sync: false   # e.g. https://your-app.vercel.app (comma-separate more; https://*.vercel.app allowed)
       - key: NODE_VERSION
         value: 20

@@ -1,140 +1,95 @@
-# Student Information Management System — Three-Tier Cloud Deployment
+# Student Information Management System — Project 1 (Vercel + Render + MongoDB Atlas + MCP agent)
 
 ```
-User → Netlify (Frontend) → Render (Express REST API) → MongoDB Atlas (Database)
+User -> Vercel (frontend) -> Render (Express REST API) -> MongoDB Atlas
+                    ^
+   One AI agent (Claude / Copilot) controls ALL of it through MCP servers
 ```
 
-| Tier | Technology | Hosted on | Folder |
-|------|-----------|-----------|--------|
-| Presentation | HTML, CSS, JavaScript | Netlify | `frontend/` |
-| Application | Node.js, Express.js, Mongoose | Render | `backend/` |
-| Database | MongoDB (`students` collection) | MongoDB Atlas | — |
+| Requirement | How it is done |
+|---|---|
+| Use Vercel + Render, **not Netlify** | `frontend/` -> Vercel, `backend/` -> Render (Netlify files removed) |
+| Claude as a **unified agent for multiple MCP servers** | `.vscode/mcp.json` / `.mcp.json` connect `student-ops` (ours) + official Render, Vercel, GitHub MCP servers; `CLAUDE.md` + `.github/copilot-instructions.md` give the agent its role and rules |
+| Update **multiple platforms in one prompt** | `sync_all`, `fix_mongodb_uri`, `platform_status` tools in `ops-mcp/server.py` |
+| **MongoDB URI issue** solved | `backend/config/mongoUri.js` (auto-fix + clear errors), `npm run check-db`, and `diagnose_mongodb_uri` / `fix_mongodb_uri` MCP tools |
 
-The frontend never talks to MongoDB directly; every action is an HTTP call to the Render API.
-
-## REST API
-
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| GET | `/api/students` | All students (`?search=term` to filter by name, ID, email, department) |
-| GET | `/api/students/:id` | One student |
-| POST | `/api/students` | Add a student |
-| PUT | `/api/students/:id` | Update a student |
-| DELETE | `/api/students/:id` | Delete a student |
-| GET | `/health` | Health check (shows DB connection state) |
-
-Student document:
-
-```json
-{
-  "studentId": "ST101",
-  "name": "Rahul Sharma",
-  "email": "rahul@example.com",
-  "department": "Computer Engineering",
-  "year": 3,
-  "phone": "9876543210"
-}
+## Folder map
+```
+backend/    Express API (Render)        config/mongoUri.js  config/db.js  scripts/check-db.js
+frontend/   Static UI (Vercel)          build.js  vercel.json  package.json
+ops-mcp/    Unified MCP server (Python) server.py  mongo_uri.py
+.vscode/mcp.json   .mcp.json   CLAUDE.md   .github/copilot-instructions.md   render.yaml
 ```
 
-## Step 1 — MongoDB Atlas (Database tier)
+---
+## 1. The MongoDB URI issue — what goes wrong and how it is solved
 
-1. Create a free account at https://www.mongodb.com/atlas and create a free **M0** cluster.
-2. **Database Access** → Add a database user (username + password). Note them down.
-3. **Network Access** → Add IP address → `0.0.0.0/0` (Allow access from anywhere). Render's free plan has no fixed IP.
-4. **Database** → Connect → Drivers → copy the connection string and add the database name:
-   ```
-   mongodb+srv://<username>:<password>@<cluster>.mongodb.net/studentdb?retryWrites=true&w=majority
-   ```
-   If the password has special characters (`@`, `#`, `/`…), URL-encode them.
+| Symptom in logs | Real cause | Fix |
+|---|---|---|
+| `Invalid scheme, expected connection string to start with "mongodb://"` | Value box contains `MONGODB_URI=mongodb+srv://...`, quotes, spaces or a line break | Auto-removed by the app; paste only the string |
+| `bad auth : Authentication failed` | Wrong DB-user password, or `<password>` brackets left in, or you used your Atlas *login* | Atlas > Database Access > Edit Password (letters+numbers) |
+| `querySrv ECONNREFUSED` | Your network/ISP/college DNS blocks SRV lookups | App retries with Google DNS automatically; else mobile hotspot |
+| `Server selection timed out` | Atlas Network Access does not allow Render | Add `0.0.0.0/0` |
+| Works locally, fails on Render | Special characters (`@ # / :`) in password | App percent-encodes them automatically |
+| Connected but data in wrong DB | No `/studentdb` in the string | App adds it |
 
-The `students` collection is created automatically on the first insert.
-
-## Step 2 — Run locally (optional but recommended)
-
-```bash
+Check it any time:
+```
 cd backend
-npm install
-cp .env.example .env        # then edit .env with your Atlas string
-npm start                   # API on http://localhost:5000
+npm run check-db        # prints what is wrong / what was auto-fixed (password hidden) and tries to connect
 ```
+**Never commit a real password** (`.env.example` must keep `<username>:<password>`). If one was committed, reset it in Atlas.
 
-In another terminal serve the frontend (any static server works):
+---
+## 2. Deploy
 
-```bash
-cd frontend
-npx serve -l 5500 .         # open http://localhost:5500
+### A. MongoDB Atlas
+Create M0 cluster -> Database Access: user + password (letters/numbers) -> Network Access: `0.0.0.0/0` -> copy the Drivers string.
+
+### B. Backend on Render
+New + > Web Service > your repo. If the repo has the project inside a folder, **Root Directory = `student-management-system/backend`** (otherwise `backend`).
+Build `npm install` · Start `npm start` · Free.
+Environment: `MONGODB_URI` (value = ONLY the string), `FRONTEND_URL` = your Vercel URL (add after step C; `*` for the first test).
+Check `https://<service>.onrender.com/health` -> `"database":"connected"`.
+
+### C. Frontend on Vercel (not Netlify)
+1. vercel.com > Add New > Project > import the same repo.
+2. **Root Directory** = `student-management-system/frontend` (or `frontend`). Framework Preset: **Other**. Leave build settings (they come from `vercel.json`).
+3. Environment Variables: `API_BASE_URL` = `https://<service>.onrender.com` (no trailing slash, no `/api`).
+4. Deploy. At build time `build.js` writes `config.js` from `API_BASE_URL`, so changing the backend later = change the env var + redeploy.
+5. Copy your Vercel URL -> Render > Environment > `FRONTEND_URL` -> save (CORS).
+
+---
+## 3. The unified agent (Claude / Copilot + MCP)
+
+### Setup (VS Code)
+1. `pip install -r ops-mcp/requirements.txt` (Python 3.10+).
+2. Open the folder `student-management-system` in VS Code (needs GitHub Copilot Chat, **Agent** mode).
+3. Edit `.vscode/mcp.json`: replace the `REPLACE-...` values (Render URL, Vercel URL, `srv-...` id from `render_list_services`, Vercel project name).
+4. Create the keys (kept out of the file; VS Code asks for them when the server starts):
+   - Render: Account Settings > **API Keys**
+   - Vercel: Account Settings > **Tokens**
+   - GitHub (optional): fine-grained token for your repo only
+5. `Ctrl+Shift+P` > **MCP: List Servers** > start `student-ops` (and the optional `render`, `vercel`, `github`). Vercel asks you to sign in (OAuth).
+6. Claude Code users: `.mcp.json` does the same (`export RENDER_API_KEY=... VERCEL_TOKEN=...` first); `CLAUDE.md` is loaded automatically.
+
+### One prompt, many platforms — examples
+- *"Backend URL changed to https://new-api.onrender.com and frontend is https://my-app.vercel.app. Update CORS on Render, API URL on Vercel, redeploy both and verify."* -> `sync_all`
+- *"Render logs say Invalid scheme. Fix the MongoDB URI and redeploy."* -> `diagnose_mongodb_uri` then `fix_mongodb_uri` (password never shown in chat)
+- *"Is everything up? Show last commit too."* -> `platform_status`
+- *"Add student ST210 Riya, riya@x.com, IT, year 2, then list IT students and show the latest GitHub commit."* -> several servers in one turn
+
+### Safety
+- Tokens come from environment/prompt inputs, never from chat or git. Revoke any token you ever pasted somewhere.
+- Use minimum permissions (fine-grained GitHub token, team-scoped Vercel token).
+- The agent is told to confirm before deleting data or changing production URLs.
+- Not verified against live accounts here: the Vercel redeploy call and the Render env-var call were tested against mock servers only. If one fails, the error text is returned; the same action is also available through the official `render` / `vercel` MCP servers.
+
+---
+## 4. Local run
 ```
-
-`frontend/config.js` already points to `http://localhost:5000`. Set `FRONTEND_URL=http://localhost:5500` in `backend/.env`.
-
-## Step 3 — Backend on Render (Application tier)
-
-1. Push this whole project to a GitHub repository.
-2. On https://render.com → **New +** → **Web Service** → connect the repo.
-3. Settings:
-   - **Root Directory:** `backend`
-   - **Runtime:** Node
-   - **Build Command:** `npm install`
-   - **Start Command:** `npm start`
-   - **Instance type:** Free
-   (Or use **Blueprint** and select the included `render.yaml`.)
-4. **Environment variables:**
-   - `MONGODB_URI` = your Atlas connection string
-   - `FRONTEND_URL` = your Netlify URL (add this after Step 4; use `*` temporarily if needed)
-5. Deploy. Your API URL will look like `https://student-api.onrender.com`.
-6. Test it: open `https://<your-service>.onrender.com/health` — it should show `"database":"connected"`.
-
-> Free Render services sleep after ~15 minutes idle; the first request can take 30–60 seconds.
-
-## Step 4 — Frontend on Netlify (Presentation tier)
-
-1. Edit `frontend/config.js` and set:
-   ```js
-   API_BASE_URL: "https://<your-service>.onrender.com"
-   ```
-   Commit and push (or just edit before uploading).
-2. On https://app.netlify.com → **Add new site**:
-   - **Drag & drop:** drag the `frontend` folder onto Netlify, **or**
-   - **From Git:** select the repo, **Base directory:** `frontend`, **Build command:** *(empty)*, **Publish directory:** `frontend`.
-3. Copy the Netlify URL (e.g. `https://my-students.netlify.app`).
-4. Go back to Render → Environment → set `FRONTEND_URL` to that URL (no trailing slash) → save (auto-redeploys).
-
-## Step 5 — Verify the full flow
-
-Open the Netlify URL and check: add a student, see it in the table, search, edit, delete. Then confirm the document in Atlas under **Browse Collections → studentdb → students**.
-
-## Security notes
-
-- Credentials live only in environment variables (`.env` is git-ignored).
-- CORS restricts the API to your Netlify origin.
-- The API whitelists accepted fields, validates input (Mongoose schema), and escapes search text.
-- Atlas access is via a dedicated DB user over TLS (`mongodb+srv`).
-
-## Project structure
-
+cd backend && npm install && cp .env.example .env   # edit .env
+npm run check-db && npm start                        # API on :5000
+cd ../frontend && npx serve -l 5500 .                # or: python -m http.server 5500
 ```
-student-management-system/
-├── README.md
-├── render.yaml
-├── backend/
-│   ├── server.js
-│   ├── package.json
-│   ├── .env.example
-│   ├── models/Student.js
-│   └── routes/students.js
-└── frontend/
-    ├── index.html
-    ├── style.css
-    ├── app.js
-    ├── config.js
-    └── netlify.toml
-```
-
-## Troubleshooting
-
-| Problem | Fix |
-|---------|-----|
-| Frontend shows "Cannot reach the server" | Render service may be waking up; also check `API_BASE_URL` in `config.js`. |
-| Browser console CORS error | `FRONTEND_URL` on Render must exactly match the Netlify URL (https, no trailing slash). |
-| `/health` shows `disconnected` / crash on start | Check `MONGODB_URI`, DB user password, and Atlas Network Access (`0.0.0.0/0`). |
-| 409 "Student ID already exists" | `studentId` must be unique. |
+Local `frontend/config.js` points to `http://localhost:5000`.

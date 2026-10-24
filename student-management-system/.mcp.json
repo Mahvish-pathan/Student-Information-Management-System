@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "student-ops": {
+      "command": "python",
+      "args": ["ops-mcp/server.py"],
+      "env": {
+        "STUDENT_API_URL": "https://REPLACE-WITH-YOUR-RENDER-URL.onrender.com",
+        "FRONTEND_URL": "https://REPLACE-WITH-YOUR-APP.vercel.app",
+        "RENDER_SERVICE_ID": "srv-REPLACE",
+        "VERCEL_PROJECT": "REPLACE-WITH-VERCEL-PROJECT-NAME",
+        "GITHUB_REPO": "Mahvish-pathan/Student-Information-Management-System",
+        "RENDER_API_KEY": "${RENDER_API_KEY}",
+        "VERCEL_TOKEN": "${VERCEL_TOKEN}",
+        "GITHUB_TOKEN": "${GITHUB_TOKEN:-}"
+      }
+    }
+  }
+}

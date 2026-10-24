@@ -1,29 +1,37 @@
-const dns = require("dns");
-dns.setServers(["8.8.8.8", "1.1.1.1"]);
 require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const studentRoutes = require("./routes/students");
+const { connectDB } = require("./config/db");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI;
 
-// ---- CORS: only allow the Netlify frontend (comma-separated list supported) ----
+// ---- CORS: allow only your frontend(s) --------------------------------------
+// FRONTEND_URL = comma-separated list. Supports a wildcard sub-domain, e.g.
+//   https://my-app.vercel.app,https://*.vercel.app      (production + preview deploys)
+// "*" allows everything (testing only).
 const allowedOrigins = (process.env.FRONTEND_URL || "*")
   .split(",")
   .map((o) => o.trim().replace(/\/$/, ""))
   .filter(Boolean);
 
+function originAllowed(origin) {
+  return allowedOrigins.some((rule) => {
+    if (rule === "*") return true;
+    if (!rule.includes("*")) return rule === origin;
+    const pattern = "^" + rule.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[a-z0-9-]+") + "$";
+    return new RegExp(pattern, "i").test(origin);
+  });
+}
+
 app.use(
   cors({
     origin(origin, callback) {
-      // allow tools like curl/Postman (no origin) and whitelisted origins
-      if (!origin || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+      // no Origin header = curl / Postman / server-to-server
+      if (!origin || originAllowed(origin)) return callback(null, true);
       return callback(new Error("Not allowed by CORS"));
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -67,16 +75,12 @@ app.use((err, req, res, next) => {
 
 // ---- Start ----
 async function start() {
-  if (!MONGODB_URI) {
-    console.error("MONGODB_URI is not set. Add it to .env or the Render environment variables.");
-    process.exit(1);
-  }
   try {
-    await mongoose.connect(MONGODB_URI);
-    console.log("Connected to MongoDB Atlas");
+    await connectDB();
     app.listen(PORT, () => console.log(`API listening on port ${PORT}`));
   } catch (err) {
     console.error("MongoDB connection failed:", err.message);
+    if (err.hint) console.error("Hint:", err.hint);
     process.exit(1);
   }
 }
